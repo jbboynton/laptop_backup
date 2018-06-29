@@ -3,6 +3,7 @@
 
 last_backup_path="/home/james/.last_backup"
 archives_path="/media/james/backups/archives"
+time_of_backup="$(date +%Y-%m-%d_%s)"
 
 backup_is_needed() {
   local backup_needed
@@ -20,6 +21,7 @@ no_usage() {
   local backup_needed
   local last_usage
 
+  # Default: 0 (true)
   backup_needed=0
 
   last_backup="$(time_since_last_backup)"
@@ -28,6 +30,8 @@ no_usage() {
   if [ "$last_usage" -gt "$last_backup" ]; then
     backup_needed=1
   fi
+
+  log "$backup_needed" "$last_usage" "$last_backup"
 
   return "$backup_needed"
 }
@@ -59,6 +63,44 @@ time_since_last_usage() {
   echo "$last_usage_in_sec"
 }
 
+log() {
+  local backup_indicator="$1"
+	local last_usage="$2"
+  local last_backup="$3"
+  local log_file="/home/james/bin/laptop_backup/logs/daily.log"
+  local is_needed
+  local info
+
+  if [ "$backup_indicator" -eq 1 ]; then
+    info="Last usage is greater than last backup! (Laptop used since last "
+    info+="backup.)"
+    is_needed="true"
+  else
+    info="Last backup is greater than last usage! (Laptop hasn't been used "
+    info+="since last backup.)"
+    is_needed="false"
+  fi
+
+	read -r -d "" log_entry << EOM
++----------------------------------+
+|                                  |
+| Daily Backup                     |
+| Timestamp: $time_of_backup       |
+|                                  |
++----------------------------------+
+
+Last usage:    $last_usage
+Last backup:   $last_backup
+Backup needed: $is_needed
+Info:          $info
+
++----------------------------------+
+
+EOM
+
+  "$log_entry" >> "$log_file"
+}
+
 remove_outdated() {
   local outdated_backup="$(ls "$archives_path" \
     | grep daily \
@@ -69,7 +111,6 @@ remove_outdated() {
 }
 
 create_archive() {
-  local time_of_backup="$(date +%Y-%m-%d_%s)"
   local archive_filename="${time_of_backup}_daily.tar.gz"
 
   local exclusions=(
@@ -90,7 +131,7 @@ create_archive() {
 }
 
 record_time_of_backup() {
-  echo "$(date +%s)" > "$last_backup_path"
+  date +%s > "$last_backup_path"
 }
 
 if backup_is_needed; then
