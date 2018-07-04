@@ -1,33 +1,22 @@
 #!/bin/bash
 # Creates a backup of the system if needed.
 
-last_backup_path="/home/james/.last_backup"
+last_backup_path="/home/james/.laptop_backup/last_backup"
+last_login_path="/home/james/.laptop_backup/last_login"
 archives_path="/media/james/backups/archives"
 time_of_backup="$(date +%Y-%m-%d_%s)"
 
 backup_is_needed() {
-  local backup_needed
-
-  backup_needed=0
-
-  if no_usage; then
-    backup_needed=1
-  fi
-
-  return "$backup_needed"
-}
-
-no_usage() {
   local backup_needed
   local last_usage
 
   # Default: 0 (true)
   backup_needed=0
 
-  last_backup="$(time_since_last_backup)"
-  last_usage="$(time_since_last_usage)"
+  last_backup="$(time_of_last "$last_backup_path")"
+  last_login="$(time_of_last "$last_login_path")"
 
-  if [ "$last_usage" -gt "$last_backup" ]; then
+  if [ "$last_backup" -gt "$last_login" ]; then
     backup_needed=1
   fi
 
@@ -36,31 +25,17 @@ no_usage() {
   return "$backup_needed"
 }
 
-time_since_last_backup() {
-  local last_backup="$(time_of_last_backup)"
-  local time_now="$(date +%s)"
-  local time_since_backup=$((time_now - last_backup))
-
-  echo "$time_since_backup"
-}
-
-time_of_last_backup() {
-  local last_backup="$(sed -n 1p "$last_backup_path" 2> /dev/null)"
+time_of_last() {
+  local path_to_timestamp="$1"
+  local timestamp="$(sed -n 1p "$path_to_timestamp" 2> /dev/null)"
   local end_of_time=2147483647
 
-  case "$last_backup" in
-    [0-9]* ) last_backup_time="$last_backup" ;;
-    *      ) last_backup_time="$end_of_time" ;;
+  case "$timestamp" in
+    [0-9]* ) last_time="$timestamp" ;;
+    *      ) last_time="$end_of_time" ;;
   esac
 
-  echo "$last_backup_time"
-}
-
-time_since_last_usage() {
-  local last_usage_in_ms="$(xprintidle)"
-  local last_usage_in_sec="$((last_usage_in_ms / 1000))"
-
-  echo "$last_usage_in_sec"
+  echo "$last_time"
 }
 
 log() {
@@ -72,20 +47,21 @@ log() {
   local info
 
   if [ "$backup_indicator" -eq 1 ]; then
-    info="Last usage is greater than last backup! (Laptop used since last "
-    info+="backup.)"
-    is_needed="true"
-  else
-    info="Last backup is greater than last usage! (Laptop hasn't been used "
+    info="Last usage is greater than last backup! (Laptop hasn't been used "
     info+="since last backup.)"
     is_needed="false"
+  else
+    info="Last backup is greater than last usage! (Laptop used since last "
+    info+="backup.)"
+    is_needed="true"
   fi
 
 	read -r -d "" log_entry << EOM
+
 +----------------------------------+
 |                                  |
 | Daily Backup                     |
-| Timestamp: $time_of_backup       |
+| Timestamp: $time_of_backup |
 |                                  |
 +----------------------------------+
 
@@ -98,7 +74,7 @@ Info:          $info
 
 EOM
 
-  "$log_entry" >> "$log_file"
+  echo "$log_entry" >> "$log_file"
 }
 
 remove_outdated() {
@@ -131,6 +107,12 @@ create_archive() {
 }
 
 record_time_of_backup() {
+  local config_directory="/home/james/.laptop_backup"
+
+  if [ ! -d "$config_directory" ]; then
+    mkdir "$config_directory"
+  fi
+
   date +%s > "$last_backup_path"
 }
 
